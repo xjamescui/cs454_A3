@@ -73,24 +73,19 @@ int rpcCall(char* name, int* argTypes, void** args)
 
     // get ip and port from binder
     if ( (opCode = ask_binder_for_host(binder_fd,&server_ip,&server_port,name_len,name,argTypesLen,argTypes)) < 0 ) {
-        // fprintf(stderr, "Error : rpcCall() cannot get host\n");
-        DEBUG("Error : rpcCall() cannot get host %d\n",opCode);
+        if (opCode == MSG_LOC_FAILURE_SIGNATURE_NOT_FOUND) {
+            fprintf(stderr, "Error : rpcCall() cannot get host: signature not found\n");
+        } else if (opCode == MSG_LOC_FAILURE_SIGNATURE_NO_HOSTS) {
+            fprintf(stderr, "Error : rpcCall() cannot get host: no host info in signature\n");
+        } else {
+            fprintf(stderr, "Error : rpcCall() cannot get host: unknown error %d\n", opCode);
+        }
+
         return opCode;
     }
 
     // done with binder, close it
     close(binder_fd);
-
-
-    // TODO: remove this {
-    unsigned int ntohip = ntohl(server_ip);
-    unsigned char ipb1,ipb2,ipb3,ipb4;
-    ipb1 = (ntohip >> 24) & 0xFF;
-    ipb2 = (ntohip >> 16) & 0xFF;
-    ipb3 = (ntohip >> 8) & 0xFF;
-    ipb4 = (ntohip >> 0) & 0xFF;
-    DEBUG("calling server: %u.%u.%u.%u:%u",ipb1,ipb2,ipb3,ipb4,ntohs(server_port));
-    // }
 
     // connect to server
     server_port_short = server_port;
@@ -172,9 +167,12 @@ int rpcTerminate()
 /**
  * rpcCall helper functions
  *
+ * error codes:
  * RPC_WRITE_TO_BINDER_FAIL
  * RPC_READ_FROM_BINDER_FAIL
  * MSG_TYPE_NOT_SUPPORTED
+ * MSG_LOC_FAILURE_SIGNATURE_NOT_FOUND
+ * MSG_LOC_FAILURE_SIGNATURE_NO_HOSTS
  *
  */
 int ask_binder_for_host(int binder_fd, unsigned int *ip, unsigned int *port,
@@ -229,7 +227,7 @@ int ask_binder_for_host(int binder_fd, unsigned int *ip, unsigned int *port,
     case MSG_LOC_FAILURE : {
         extract_msg(rw_buffer,rw_buffer_len,MSG_LOC_FAILURE,&result);
         free(rw_buffer);
-        return result; // TODO : check if this is really what we want to return
+        return result; // signature not found, or no hosts in signature
     }
     break;
     default:
