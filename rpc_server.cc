@@ -183,7 +183,17 @@ int rpcExecute()
 
                 char msg_type;
                 unsigned int msg_len;
-                if (read_message(&connection_msg, connection_fd) < 0) {
+
+                int read_len = read_message(&connection_msg, connection_fd);
+
+                if (read_len == READ_MSG_ZERO_LENGTH) {
+                  // binder is closed
+                  close(connection_fd);
+                  FD_CLR(connection_fd, &g_active_fds);
+                  break;
+                }
+
+                if (read_len < 0) {
                     fprintf(stderr, "ERROR reading from binder socket: %s\n", strerror(errno));
                     continue;
                 }
